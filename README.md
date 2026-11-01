@@ -69,7 +69,11 @@ View startup logs with `docker compose logs -f dss`, and stop the node with
 `docker compose down`. The persistent data remains in the `dss-data` Docker
 volume: `docker compose down` preserves it, `docker compose down --volumes`
 deletes it. Rebuild the custom image after changing the DSS version or startup
-wrapper with `docker compose up --build -d`. A newer DSS version is not applied
+wrapper with `docker compose up --build -d`. The image is named after the
+Compose project and the DSS version, for example `dss-docker-bootstrap-dss:13.4.4`
+(the project name defaults to the folder name, or is set with `-p`), so
+projects built with different settings never replace each other's image.
+A newer DSS version is not applied
 to an existing data directory until you allow it; see
 [Upgrade DSS](#upgrade-dss).
 
@@ -249,7 +253,8 @@ Windows:
   throwaway Compose project: refusals on an unusable license and on a data
   directory from another DSS version, a fresh install up to `healthy`, the
   startup logs, the JDBC drivers, the license as accepted by DSS, and a restart
-  that installs nothing again. It takes several minutes per version. Without
+  that installs nothing again. The checks that run inside the DSS container
+  are in `scripts/smoke-checks/`. It takes several minutes per version. Without
   arguments it tests the version `docker-compose.yml` resolves; otherwise pass
   versions, with or without a digest:
 
@@ -257,9 +262,10 @@ Windows:
   scripts/smoke-test.sh 13.4.4 15.2.0@sha256:04b18e413e617d6485c317737228a6b16dcd899f815ee2a626c2b2b0e428582f
   ```
 
-  It uses host port 10100 (`SMOKE_PORT`), so it can run next to a running
-  node, and rebuilds the `dss-docker-bootstrap:<version>` image that node uses.
-  `--keep` leaves the test project in place for inspection.
+  It uses host port 10100 (`SMOKE_PORT`) and its own image,
+  `dss-smoke-<version>-dss:<version>`, deleted at the end, so it can run next
+  to a running node without touching it. `--keep` leaves the test project and
+  its image in place for inspection.
 
 Run both before changing `DSS_VERSION` or the scripts: the base images differ
 between DSS versions, down to the tools they include.

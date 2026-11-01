@@ -1,6 +1,10 @@
 services:
   dss:
-    image: dss-docker-bootstrap:${DSS_VERSION:-13.4.4}
+    # One image per Compose project, for example dss15-orcl21-dss:15.2.0:
+    # projects can build it with different settings (JDBC drivers, digest), and
+    # a shared name would let one project's build replace another's image.
+    # Compose sets COMPOSE_PROJECT_NAME to the project name (-p, or the folder).
+    image: ${COMPOSE_PROJECT_NAME:?this Docker Compose version does not set COMPOSE_PROJECT_NAME}-dss:${DSS_VERSION:-13.4.4}
     build:
       context: .
       args:
