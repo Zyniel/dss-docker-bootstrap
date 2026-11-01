@@ -8,3 +8,7 @@ license.json
 
 # IDE settings
 .idea/
+
+# Data directory backups saved before DSS upgrades
+backups/*
+!backups/.gitkeep

@@ -14,20 +14,42 @@ directory is persistent in a Docker-managed named volume.
 
 ## Configure
 
-Copy `.env.example` to `.env`, then set the desired DSS image tag, host port and
-JDBC driver versions:
+Copy `.env.example` to `.env`, then set the desired DSS image tag and digest,
+host port and JDBC driver versions:
 
 ```dotenv
 DSS_VERSION=13.4.4
 DSS_PORT=10000
+DSS_IMAGE_DIGEST=sha256:8bc5cd7512506a453e9ba9866786ff22937b3194dc70039539e5d04890b6a002
 ORACLE_JDBC_VERSION=21.24.0.0
 TRINO_JDBC_VERSION=484
+DSS_ALLOW_UPGRADE=
 ```
 
-`DSS_VERSION` must be a tag published for
-[`dataiku/dss`](https://hub.docker.com/r/dataiku/dss/tags) on Docker Hub. Not
-every DSS release has one. The JDBC driver versions are described in
-[JDBC drivers](#jdbc-drivers).
+`DSS_VERSION` must be a version tag published for
+[`dataiku/dss`](https://hub.docker.com/r/dataiku/dss/tags) on Docker Hub, such
+as `13.4.4`. Not every DSS release has one. The JDBC driver versions are
+described in [JDBC drivers](#jdbc-drivers), and `DSS_ALLOW_UPGRADE` in
+[Upgrade DSS](#upgrade-dss).
+
+`DSS_IMAGE_DIGEST` pins the exact base image published under that tag, so the
+build does not change if the tag is pushed again. When a digest is given,
+Docker uses it and ignores the tag, so it must be the digest of
+`dataiku/dss:<DSS_VERSION>`: the build checks that the base image contains that
+DSS version and fails otherwise. Change both together, and get the digest of a
+tag with:
+
+```powershell
+docker buildx imagetools inspect dataiku/dss:15.2.0
+```
+
+| Tag | Digest (as published on 2026-11-01) |
+|---|---|
+| `13.4.4` | `sha256:8bc5cd7512506a453e9ba9866786ff22937b3194dc70039539e5d04890b6a002` |
+| `15.2.0` | `sha256:04b18e413e617d6485c317737228a6b16dcd899f815ee2a626c2b2b0e428582f` |
+
+Leave `DSS_IMAGE_DIGEST` unset to use the 13.4.4 digest, or set it to empty
+(`DSS_IMAGE_DIGEST=`) to build from the tag alone.
 
 The image listens on container port `10000`; `DSS_PORT` selects the host port,
 bound to `127.0.0.1` so DSS is not exposed to the network by default. The first
@@ -45,22 +67,70 @@ docker compose up --build -d
 Open `http://localhost:10000` (or replace `10000` with the configured `DSS_PORT`).
 View startup logs with `docker compose logs -f dss`, and stop the node with
 `docker compose down`. The persistent data remains in the `dss-data` Docker
-volume. Rebuild the custom image after changing the DSS version or startup
-wrapper with `docker compose up --build -d`.
+volume: `docker compose down` preserves it, `docker compose down --volumes`
+deletes it. Rebuild the custom image after changing the DSS version or startup
+wrapper with `docker compose up --build -d`. A newer DSS version is not applied
+to an existing data directory until you allow it; see
+[Upgrade DSS](#upgrade-dss).
 
-The container listens only on `127.0.0.1` by default and has
-`no-new-privileges` enabled. Docker retries failed container starts up to three
-times.
+The image has a healthcheck: `docker compose ps` shows the container as
+`healthy` once the DSS backend answers on `/dip/api/ping`. It stays `starting`
+while DSS is being installed, upgraded or started, which can take several
+minutes, and turns `unhealthy` if the backend stops answering.
 
-Back up the `dss-data` Docker volume before changing `DSS_VERSION`: the image
-upgrades an existing DSS data directory when started with a newer version.
-`docker compose down` preserves the volume; `docker compose down --volumes`
-deletes it.
+A fresh data directory has the DSS default `admin` / `admin` login. Change the
+password at first login. The container listens only on `127.0.0.1` by default
+and has `no-new-privileges` enabled; do not expose the port before the
+password is changed. Docker retries failed container starts up to three times.
 
-DSS cannot downgrade a data directory, and its installer does not check for
-it. So the container refuses to start when the data directory was created by a
-newer DSS than the image runs, and logs both versions. To go back to an older
-version, start from a new, empty volume.
+## Upgrade DSS
+
+Starting a newer `DSS_VERSION` on an existing data directory upgrades it in
+place, and that cannot be undone: DSS cannot downgrade a data directory. So the
+container never upgrades on its own:
+
+- When the data directory is from an older DSS, it refuses to start and logs
+  both versions (once per Docker retry, so four times), unless
+  `DSS_ALLOW_UPGRADE` is set to the new version. Changing
+  `DSS_VERSION` alone, or a `DSS_VERSION` left in the shell environment (Compose
+  prefers it to `.env`), therefore never upgrades.
+- When the upgrade is allowed, it first saves the whole data directory to
+  `backups/dss-data-<old version>-<UTC date and time>.tar.gz`, then upgrades.
+  DSS is not running yet, so the backup is consistent. If the backup cannot be
+  written, the data directory is left as is and the container exits.
+- When the data directory is from a newer DSS, it refuses to start. DSS's own
+  installer does not check for this.
+
+To upgrade, for example from 13.4.4 to 15.2.0, set in `.env`:
+
+```dotenv
+DSS_VERSION=15.2.0
+DSS_IMAGE_DIGEST=sha256:04b18e413e617d6485c317737228a6b16dcd899f815ee2a626c2b2b0e428582f
+DSS_ALLOW_UPGRADE=15.2.0
+```
+
+then rebuild and start with `docker compose up --build -d`. Since
+`DSS_ALLOW_UPGRADE` names one version, leaving it in `.env` does not allow the
+next upgrade. The backup takes as much disk space as the data directory,
+compressed, and time to write; remove old backups from `backups/` yourself.
+
+To go back to the version before the upgrade, restore its backup into a new,
+empty volume. This deletes the upgraded data directory:
+
+1. Set `DSS_VERSION` and `DSS_IMAGE_DIGEST` back to the old version in `.env`.
+2. Delete the upgraded volume and restore the backup into a new one, replacing
+   the file name:
+
+   ```powershell
+   docker compose down --volumes
+   docker compose run --rm --no-deps dss tar -xzf /home/dataiku/backups/dss-data-13.4.4-20261101T120000Z.tar.gz -C /home/dataiku/dss
+   ```
+
+3. Start DSS with `docker compose up --build -d`.
+
+On Linux hosts, `backups/` must be writable by uid 1000, the `dataiku` user in
+the container. The folder is in the repository so that Docker does not create
+it owned by root. Docker Desktop does not need this.
 
 ## JDBC drivers
 
@@ -129,10 +199,11 @@ uses that:
    fails if that line is not found, so a changed upstream script cannot be
    silently ignored after a `DSS_VERSION` bump.
 2. At container start, [`start-dss.sh`](start-dss.sh) checks that the license
-   file, when present, is readable JSON, runs `dss-init.sh` (install on an
-   empty volume, upgrade when the DSS version changed, nothing otherwise),
-   installs the [JDBC drivers](#jdbc-drivers), copies the license to
-   `config/license.json` when it differs, then `exec`s `dss run`.
+   file, when present, is readable JSON, checks the data directory version
+   (see [Upgrade DSS](#upgrade-dss)), runs `dss-init.sh` (install on an empty
+   volume, upgrade when allowed, nothing otherwise), installs the
+   [JDBC drivers](#jdbc-drivers), copies the license to `config/license.json`
+   when it differs, then `exec`s `dss run`.
 
 DSS starts once, already licensed: there is no API polling and no restart.
 
@@ -166,10 +237,40 @@ The container runs as `dataiku` (uid 1000), so `license/license.json` must be
 readable by that uid, for example owned by uid 1000 with mode `600`. Docker
 Desktop does not need this.
 
+## Development
+
+Two scripts check changes; both need only Docker, and run from Git Bash on
+Windows:
+
+- `scripts/lint.sh` runs [ShellCheck](https://www.shellcheck.net/) on the shell
+  scripts and [Hadolint](https://github.com/hadolint/hadolint) on the
+  Dockerfile, from their official images.
+- `scripts/smoke-test.sh` builds the image and tests it end to end in a
+  throwaway Compose project: refusals on an unusable license and on a data
+  directory from another DSS version, a fresh install up to `healthy`, the
+  startup logs, the JDBC drivers, the license as accepted by DSS, and a restart
+  that installs nothing again. It takes several minutes per version. Without
+  arguments it tests the version `docker-compose.yml` resolves; otherwise pass
+  versions, with or without a digest:
+
+  ```bash
+  scripts/smoke-test.sh 13.4.4 15.2.0@sha256:04b18e413e617d6485c317737228a6b16dcd899f815ee2a626c2b2b0e428582f
+  ```
+
+  It uses host port 10100 (`SMOKE_PORT`), so it can run next to a running
+  node, and rebuilds the `dss-docker-bootstrap:<version>` image that node uses.
+  `--keep` leaves the test project in place for inspection.
+
+Run both before changing `DSS_VERSION` or the scripts: the base images differ
+between DSS versions, down to the tools they include.
+
+`.gitattributes` keeps LF line endings in the working tree on Windows: the
+scripts run in Linux containers, where CRLF line endings break them.
+
 ## License and image usage
 
 Keep the license file at `license/license.json`. It is ignored by Git and
-excluded from the build context, as is `.env`.
+excluded from the build context, as are `.env` and other `.env.*` files.
 
 The public `dataiku/dss` Docker Hub image is described as intended for evaluation
 and not production use. Dataiku also warns that running DSS in a container is

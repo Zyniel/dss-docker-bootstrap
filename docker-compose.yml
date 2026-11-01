@@ -5,16 +5,25 @@ services:
       context: .
       args:
         DSS_VERSION: ${DSS_VERSION:-13.4.4}
+        # Digest of dataiku/dss:$DSS_VERSION. Without a value here, the default
+        # in the Dockerfile (the digest of 13.4.4) applies; set it to empty in
+        # .env to use the tag alone.
+        DSS_IMAGE_DIGEST:
         # JDBC drivers built into the image. Set a version to empty in .env to
         # leave that driver out ("-" rather than ":-": only an unset variable
         # falls back to the default). Rebuild after changing them.
         ORACLE_JDBC_VERSION: ${ORACLE_JDBC_VERSION-21.24.0.0}
         TRINO_JDBC_VERSION: ${TRINO_JDBC_VERSION-484}
+    environment:
+      # Set to the DSS version of the image to let it upgrade an existing data
+      # directory from an older DSS, after backing it up to ./backups.
+      DSS_ALLOW_UPGRADE: ${DSS_ALLOW_UPGRADE:-}
     ports:
       - "127.0.0.1:${DSS_PORT:-10000}:10000"
     volumes:
       - dss-data:/home/dataiku/dss
       - ./license:/home/dataiku/license:ro
+      - ./backups:/home/dataiku/backups
     restart: on-failure:3
     init: true
     security_opt:
