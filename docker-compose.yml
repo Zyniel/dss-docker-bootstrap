@@ -1,0 +1,24 @@
+services:
+  dss:
+    image: dss-docker-bootstrap:${DSS_VERSION:-13.4.4}
+    build:
+      context: .
+      args:
+        DSS_VERSION: ${DSS_VERSION:-13.4.4}
+        # JDBC drivers built into the image. Set a version to empty in .env to
+        # leave that driver out ("-" rather than ":-": only an unset variable
+        # falls back to the default). Rebuild after changing them.
+        ORACLE_JDBC_VERSION: ${ORACLE_JDBC_VERSION-21.24.0.0}
+        TRINO_JDBC_VERSION: ${TRINO_JDBC_VERSION-484}
+    ports:
+      - "127.0.0.1:${DSS_PORT:-10000}:10000"
+    volumes:
+      - dss-data:/home/dataiku/dss
+      - ./license:/home/dataiku/license:ro
+    restart: on-failure:3
+    init: true
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  dss-data:

@@ -1,0 +1,7 @@
+.env
+.env.*
+.git
+.idea
+dss-data
+license
+license.json

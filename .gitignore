@@ -1,0 +1,10 @@
+# Local settings: .env and any other env file, except the example
+.env
+.env.*
+!.env.example
+
+# DSS license, wherever it is placed (license/license.json is the expected path)
+license.json
+
+# IDE settings
+.idea/
