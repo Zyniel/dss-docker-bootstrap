@@ -26,7 +26,7 @@ Local Dataiku DSS test servers with Docker Compose, built on the official
 
 ```shell
 cp /path/to/license.json license/license.json   # optional
-cd instances/dss15-orcl21
+cd instances/dss-15-2-0                           # or instances/dss-13-4-4
 docker compose up -d
 ```
 
@@ -47,7 +47,8 @@ scripts/            lint and smoke test
 
 ## Instances
 
-An instance is a folder in `instances/` holding a `compose.yaml`:
+An instance is a folder in `instances/` holding a `compose.yaml`, named after
+its DSS version. Two are provided, `dss-15-2-0` and `dss-13-4-4`:
 
 ```yaml
 services:
@@ -58,8 +59,6 @@ services:
     build:
       args:
         DSS_BASE_IMAGE: dataiku/dss:15.2.0@sha256:04b18e413e617d6485c317737228a6b16dcd899f815ee2a626c2b2b0e428582f
-        ORACLE_JDBC_VERSION: 21.24.0.0
-        TRINO_JDBC_VERSION: ""
 
 volumes:
   dss-data:
@@ -74,6 +73,7 @@ volumes:
 - The folder name is the Compose project name: it names the container, the
   image (`<name>-dss`) and the data volume (`<name>_dss-data`).
 - The `volumes` block is required.
+- Use dashes for the version's dots: Compose project names cannot contain dots.
 - To add an instance, copy a folder and change its settings.
 - A digest is printed by `docker buildx imagetools inspect dataiku/dss:<tag>`.
   The build fails if the tag does not match the DSS version in the image.

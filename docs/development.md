@@ -73,5 +73,5 @@ For each base image, in a throwaway Compose project `dss-smoke-<version>`:
   for manual `docker` commands:
 
   ```shell
-  MSYS_NO_PATHCONV=1 docker exec dss15-orcl21-dss-1 ls /home/dataiku/dss/lib/jdbc
+  MSYS_NO_PATHCONV=1 docker exec dss-15-2-0-dss-1 ls /home/dataiku/dss/lib/jdbc
   ```
