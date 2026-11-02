@@ -1,0 +1,15 @@
+# Local DSS 15.2.0 server. Start it from this folder with "docker compose up -d".
+# The folder name is the Compose project name: its data is in the volume
+# dss-15-2-0_dss-data. Host port: DSS_HOST_PORT in a .env file in this folder,
+# default 10000.
+services:
+  dss:
+    extends:
+      file: ../../compose.base.yaml
+      service: dss
+    build:
+      args:
+        DSS_BASE_IMAGE: dataiku/dss:15.2.0@sha256:04b18e413e617d6485c317737228a6b16dcd899f815ee2a626c2b2b0e428582f
+
+volumes:
+  dss-data:

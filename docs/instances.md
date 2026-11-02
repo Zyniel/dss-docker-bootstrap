@@ -1,7 +1,13 @@
 # Instances
 
 An instance is a DSS server: a folder in `instances/` with a `compose.yaml`
-that extends [`compose.base.yaml`](../compose.base.yaml).
+that extends [`compose.base.yaml`](../compose.base.yaml). Each one is named
+after its DSS version:
+
+| Instance | Base image |
+|---|---|
+| `dss-15-2-0` | `dataiku/dss:15.2.0`, pinned by digest |
+| `dss-13-4-4` | `dataiku/dss:13.4.4`, pinned by digest |
 
 ## Names
 
@@ -13,17 +19,20 @@ The folder name is the Compose project name, which names everything else:
 | Image | `<name>-dss` |
 | Data volume | `<name>_dss-data` |
 
-- Use lowercase letters, digits and dashes.
+- Use lowercase letters, digits and dashes. Compose drops dots from project
+  names (`dss15.2.0` would become `dss1520`), hence `dss-15-2-0`.
 - Renaming the folder starts a new, empty instance. The old volume stays until
   deleted.
 
 ## Create an instance
 
+For another DSS version, copy an instance and name it after that version:
+
 ```shell
-cp -r instances/dss15-orcl21 instances/dss13-trino
+cp -r instances/dss-15-2-0 instances/dss-<x-y-z>
 ```
 
-Then edit `instances/dss13-trino/compose.yaml`:
+Then set its base image in `instances/dss-<x-y-z>/compose.yaml`:
 
 ```yaml
 services:
@@ -33,13 +42,13 @@ services:
       service: dss
     build:
       args:
-        DSS_BASE_IMAGE: dataiku/dss:13.4.4
-        ORACLE_JDBC_VERSION: ""
-        TRINO_JDBC_VERSION: "484"
+        DSS_BASE_IMAGE: dataiku/dss:<x.y.z>
 
 volumes:
   dss-data:   # required: extends does not carry it over
 ```
+
+The JDBC driver settings are optional; see [JDBC drivers](jdbc-drivers.md).
 
 ## Host port
 
@@ -47,7 +56,7 @@ Each instance is published on `127.0.0.1:${DSS_HOST_PORT:-10000}`. To run
 instances side by side, give each its own port in a `.env` file in its folder:
 
 ```shell
-echo DSS_HOST_PORT=10001 > instances/dss13-trino/.env
+echo DSS_HOST_PORT=10001 > instances/dss-13-4-4/.env
 ```
 
 - `.env` files are ignored by Git: the port is a setting of your machine, not
