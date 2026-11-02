@@ -1,8 +1,6 @@
-.env
-.env.*
 .git
 .idea
-dss-data
+.smoke
+instances
 license
 license.json
-backups

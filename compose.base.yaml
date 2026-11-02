@@ -1,0 +1,24 @@
+# Shared by every instance: each instances/<name>/compose.yaml extends the dss
+# service below with its own DSS base image, JDBC drivers and port. See
+# README.md. Relative paths here are relative to this file's folder.
+services:
+  dss:
+    build:
+      context: .
+    # Build on every "docker compose up", from cache, so that the image always
+    # matches the instance's compose.yaml, even after it changes. Compose names
+    # the image after the instance: <name>-dss.
+    pull_policy: build
+    volumes:
+      - dss-data:/home/dataiku/dss
+      # One license for every instance, read-only. The folder is mounted rather
+      # than the file, so that the license can be missing.
+      - ./license:/home/dataiku/license:ro
+    restart: on-failure:3
+    init: true
+    security_opt:
+      - no-new-privileges:true
+
+# Instances declare this volume again: extends does not carry it over.
+volumes:
+  dss-data:

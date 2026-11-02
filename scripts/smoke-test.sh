@@ -2,7 +2,7 @@
 #
 # Smoke test for the DSS image: builds it, starts it and checks that it works.
 #
-# For each DSS version given, the test:
+# For each DSS base image given, the test:
 #   1. builds the image with Docker Compose;
 #   2. checks that the container refuses to start when something is wrong (a
 #      bad license, a data directory from another DSS version), and that it
@@ -11,17 +11,19 @@
 #   4. checks the startup logs, the JDBC drivers and the license;
 #   5. restarts DSS and checks that nothing is installed a second time.
 #
-# Each version runs in its own throwaway Compose project, named
-# dss-smoke-<version>, deleted at the end with its volumes unless --keep is
-# given. If license/license.json exists, it is used, and DSS must accept it.
-# The checks that run inside the DSS container are in scripts/smoke-checks/.
+# Each base image is tested in its own throwaway Compose project, named
+# dss-smoke-<version>: compose.base.yaml plus a small override file,
+# .smoke/compose.yaml, that sets the base image and the port. The project is
+# deleted at the end, with its volumes and image, unless --keep is given. If
+# license/license.json exists, it is used, and DSS must accept it. The checks
+# that run inside the DSS container are in scripts/smoke-checks/.
 #
 # Usage:
-#   scripts/smoke-test.sh                   test the version docker-compose.yml
-#                                           uses, from .env or its defaults
-#   scripts/smoke-test.sh 13.4.4 15.2.0     test these dataiku/dss tags
-#   scripts/smoke-test.sh 15.2.0@sha256:... test a tag pinned to a digest
-#   scripts/smoke-test.sh --keep 13.4.4     keep the test project afterwards
+#   scripts/smoke-test.sh                      test the base images used by the
+#                                              instances in instances/
+#   scripts/smoke-test.sh dataiku/dss:13.4.4   test these base images, with or
+#   scripts/smoke-test.sh dataiku/dss:15.2.0@sha256:...   without a digest
+#   scripts/smoke-test.sh --keep dataiku/dss:13.4.4   keep the test project
 #
 # Optional environment variables:
 #   SMOKE_PORT     host port for DSS during the test (default 10100)
@@ -38,16 +40,19 @@ set -euo pipefail
 export MSYS_NO_PATHCONV=1
 
 # Work from the project folder, the parent of scripts/, wherever the script is
-# started from, so that docker-compose.yml and license/ are found.
+# started from, so that compose.base.yaml and license/ are found.
 cd "$(dirname "$0")/.."
 
 # ${NAME:-default} is the value of NAME, or "default" when NAME is unset or empty.
 SMOKE_PORT=${SMOKE_PORT:-10100}
 SMOKE_TIMEOUT=${SMOKE_TIMEOUT:-1200}
 
+# The override file written for each base image (ignored by Git).
+OVERRIDE=.smoke/compose.yaml
+
 # Set by smoke_test for each version, and used by the functions below.
 project=""  # Compose project name, for example dss-smoke-13-4-4
-image=""    # image name, for example dss-smoke-13-4-4-dss:13.4.4
+image=""    # image name, for example dss-smoke-13-4-4-dss
 keep=false  # true when --keep is given
 
 # ---------------------------------------------------------------------------
@@ -59,10 +64,11 @@ log() {
     echo "[smoke] $*"
 }
 
-# compose ARGUMENTS...: runs "docker compose" on the current test project.
-# "$@" passes on all the arguments the function was given, unchanged.
+# compose ARGUMENTS...: runs "docker compose" on the current test project,
+# from compose.base.yaml and the override file. "$@" passes on all the
+# arguments the function was given, unchanged.
 compose() {
-    docker compose -p "$project" "$@"
+    docker compose -p "$project" -f compose.base.yaml -f "$OVERRIDE" "$@"
 }
 
 # fail MESSAGE: prints the error and the end of the DSS logs, then stops the
@@ -86,16 +92,18 @@ remove_project() {
     compose down --volumes --remove-orphans --rmi all >/dev/null 2>&1 || true
 }
 
-# cleanup: deletes the test project, unless --keep was given. "trap" makes it
-# run whenever the script exits, whether the tests passed or failed.
+# cleanup: deletes the test project and the override file, unless --keep was
+# given. "trap" makes it run whenever the script exits, whether the tests
+# passed or failed.
 cleanup() {
     if [[ -z "$project" ]]; then
         return
     fi
     if [[ "$keep" == true ]]; then
-        log "Keeping Compose project $project and volume ${project}_guard"
+        log "Keeping Compose project $project, volume ${project}_guard and $OVERRIDE"
     else
         remove_project
+        rm -f "$OVERRIDE"
     fi
 }
 trap cleanup EXIT
@@ -180,11 +188,10 @@ set_data_version() {
         bash -c 'echo "{\"product_version\": \"$FAKE_VERSION\"}" >"$DSS_DATADIR/dss-version.json"'
 }
 
-# check_refusals VERSION: checks that start-dss.sh stops, before changing
-# anything, when it is given something it cannot use. The cases run on a
-# separate "guard" volume, not on the one DSS is then tested on.
+# check_refusals: checks that start-dss.sh stops, before changing anything,
+# when it is given something it cannot use. The cases run on a separate
+# "guard" volume, not on the one DSS is then tested on.
 check_refusals() {
-    local version=$1
     docker volume create "${project}_guard" >/dev/null
 
     # A license that is not JSON: run.sh is a file that exists in the image.
@@ -194,16 +201,10 @@ check_refusals() {
     expect_refusal "a license path that is a directory" "is not a readable file" \
         -e DSS_LICENSE_FILE=/home/dataiku
 
-    # A data directory from a newer DSS, which DSS cannot downgrade.
-    set_data_version 999.0.0
-    expect_refusal "a data directory from a newer DSS" "DSS cannot downgrade a data directory"
-
-    # A data directory from an older DSS: upgrading it needs DSS_ALLOW_UPGRADE,
-    # and a backup folder, which a plain "docker run" does not mount.
+    # A data directory from another DSS version. Without the refusal, DSS's
+    # own startup would upgrade it.
     set_data_version 1.0.0
-    expect_refusal "an upgrade without DSS_ALLOW_UPGRADE" "set DSS_ALLOW_UPGRADE=$version"
-    expect_refusal "an upgrade with no backup folder mounted" "is not a writable directory" \
-        -e "DSS_ALLOW_UPGRADE=$version"
+    expect_refusal "a data directory from another DSS version" "but this image runs DSS"
 }
 
 # check_logs: fails if the DSS logs contain errors from the startup scripts:
@@ -285,42 +286,35 @@ check_restart() {
 # Test of one version
 # ---------------------------------------------------------------------------
 
-# smoke_test SPEC: runs all the steps for one version. SPEC is a VERSION, a
-# VERSION@DIGEST, or empty for the version docker-compose.yml uses.
+# smoke_test BASE_IMAGE: runs all the steps for one base image, for example
+# dataiku/dss:15.2.0 or dataiku/dss:15.2.0@sha256:04b1...
 smoke_test() {
-    local spec=$1
+    local base_image=$1
+    local reference
     local version
 
-    # Choose what docker-compose.yml builds. Variables exported here take
-    # precedence over the .env file.
-    if [[ -z "$spec" ]]; then
-        # Use .env or the defaults.
-        unset DSS_VERSION DSS_IMAGE_DIGEST
-    elif [[ "$spec" == *@* ]]; then
-        # Split "15.2.0@sha256:04b1..." at the "@": ${spec%%@*} removes
-        # everything from the "@" on, ${spec#*@} everything up to it.
-        export DSS_VERSION=${spec%%@*}
-        export DSS_IMAGE_DIGEST=${spec#*@}
-    else
-        # Build from the tag alone.
-        export DSS_VERSION=$spec
-        export DSS_IMAGE_DIGEST=""
-    fi
-    export DSS_PORT=$SMOKE_PORT
-    export DSS_ALLOW_UPGRADE=""
-
-    # Ask Compose which DSS version this gives: the tag of the image name, for
-    # example 13.4.4 in dss-smoke-dss:13.4.4. Compose needs some project name
-    # even to read its configuration.
-    project=dss-smoke
-    image=$(compose config --images)
-    version=${image##*:}  # everything after the last ":"
-    # Name the test project after the version (project names cannot contain
-    # dots), then get the image name for that project, which includes it, for
-    # example dss-smoke-13-4-4-dss:13.4.4.
+    # The DSS version is the image tag: remove the "@digest" part, if any, then
+    # keep what follows the last ":".
+    reference=${base_image%@*}
+    version=${reference##*:}
+    # Project names cannot contain dots.
     project=dss-smoke-$(echo "$version" | tr '.' '-')
+
+    # The override file adds the base image and the port to compose.base.yaml.
+    # Everything between the two EOF lines is written to the file as is, with
+    # the variables replaced by their values.
+    mkdir -p "$(dirname "$OVERRIDE")"
+    cat >"$OVERRIDE" <<EOF
+services:
+  dss:
+    build:
+      args:
+        DSS_BASE_IMAGE: $base_image
+    ports:
+      - "127.0.0.1:$SMOKE_PORT:10000"
+EOF
     image=$(compose config --images)
-    log "=== DSS $version (${spec:-as resolved by docker-compose.yml}), Compose project $project"
+    log "=== $base_image, Compose project $project"
     # In case an earlier run was interrupted.
     remove_project
 
@@ -331,7 +325,7 @@ smoke_test() {
     fi
 
     # 2. Refusals.
-    check_refusals "$version"
+    check_refusals
 
     # 3. Fresh start.
     log "Starting DSS on a fresh volume, port $SMOKE_PORT"
@@ -367,12 +361,20 @@ if [[ "${1:-}" == "--keep" ]]; then
     shift
 fi
 
-# $# is the number of arguments left.
+# Without arguments ($# is the number of arguments left), test the base images
+# the instances use: the value after "DSS_BASE_IMAGE:" in each
+# instances/*/compose.yaml, once each. mapfile reads lines into an array, and
+# "< <(...)" gives it the output of the commands in the parentheses.
 if [[ $# -eq 0 ]]; then
-    smoke_test ""
-else
-    for spec in "$@"; do
-        smoke_test "$spec"
-    done
+    mapfile -t base_images < <(grep -h 'DSS_BASE_IMAGE:' instances/*/compose.yaml | awk '{print $2}' | sort -u)
+    if [[ ${#base_images[@]} -eq 0 ]]; then
+        fail "no DSS_BASE_IMAGE found in instances/*/compose.yaml"
+    fi
+    # Use that list as the arguments.
+    set -- "${base_images[@]}"
 fi
+
+for base_image in "$@"; do
+    smoke_test "$base_image"
+done
 log "All smoke tests passed"
