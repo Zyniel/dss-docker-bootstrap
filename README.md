@@ -1,5 +1,12 @@
 # Dataiku DSS Docker bootstrap
 
+[![Lint](https://github.com/Zyniel/dss-docker-bootstrap/actions/workflows/lint.yml/badge.svg)](https://github.com/Zyniel/dss-docker-bootstrap/actions/workflows/lint.yml)
+
+> An independent project, not affiliated with or endorsed by Dataiku. It
+> contains no Dataiku software: it builds on Dataiku's public `dataiku/dss`
+> image, under Dataiku's terms (see
+> [DSS license and image terms](#dss-license-and-image-terms)).
+
 Local Dataiku DSS servers for tests, with Docker Compose. A small custom image
 extends the official versioned DSS image so that optional JDBC drivers (Oracle,
 Trino) and an optional license file are installed into the DSS data directory
@@ -19,6 +26,7 @@ scripts/            tools to check changes: lint and smoke test
 - Docker Engine with the Compose plugin (or Docker Desktop)
 - Optionally, a Dataiku DSS license file at `license/license.json`, used by
   every instance. Without one, DSS runs in its default free mode.
+- To run the scripts in `scripts/`: bash, which on Windows is Git Bash.
 
 ## Instances
 
@@ -68,7 +76,7 @@ and port in its `compose.yaml`.
 
 From the instance's folder:
 
-```powershell
+```shell
 cd instances/dss15-orcl21
 docker compose up -d
 ```
@@ -180,7 +188,7 @@ When `license/license.json` is present, it is the source of truth: it overwrites
 replaced at the next start. After adding or updating it, restart the
 instances, from each instance's folder:
 
-```powershell
+```shell
 docker compose restart dss
 ```
 
@@ -227,14 +235,17 @@ Windows:
   `--keep` leaves the test project in place for inspection.
 
 Run both before changing a base image or the scripts: the base images differ
-between DSS versions, down to the tools they include.
+between DSS versions, down to the tools they include. GitHub Actions runs the
+lint on every push and pull request
+([`.github/workflows/lint.yml`](.github/workflows/lint.yml)); the smoke test
+needs the DSS images, several GB each, so it runs locally only.
 
 `.gitattributes` keeps LF line endings in the working tree on Windows: the
 scripts run in Linux containers, where CRLF line endings break them.
 
-## License and image usage
+## DSS license and image terms
 
-Keep the license file at `license/license.json`. It is ignored by Git, and
+Keep the DSS license file at `license/license.json`. It is ignored by Git, and
 outside the build context (`image/`), so it never ends up in an image.
 
 The public `dataiku/dss` Docker Hub image is described as intended for evaluation
@@ -242,3 +253,11 @@ and not production use. Dataiku also warns that running DSS in a container is
 unsupported and generally incompatible with using containers as a processing
 engine. Consult your Dataiku account team before using this deployment model:
 [Dataiku container installation guidance](https://doc.dataiku.com/dss/latest/installation/other/container.html).
+
+Dataiku and Dataiku DSS are trademarks of Dataiku.
+
+## License
+
+This repository is under the [MIT License](LICENSE.txt). It covers the files here
+only, not Dataiku DSS, its Docker images or the JDBC drivers, which keep their
+own licenses.

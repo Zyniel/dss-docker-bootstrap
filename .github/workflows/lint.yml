@@ -1,0 +1,21 @@
+# Runs scripts/lint.sh (ShellCheck and Hadolint) on every push and pull
+# request. The smoke test is not run here: it needs the DSS images (several GB
+# each) and minutes per version, so run it locally (see README.md).
+name: Lint
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      # Pinned to a commit, the release tag's target, so that the tag cannot
+      # change what runs.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: ShellCheck and Hadolint
+        run: bash scripts/lint.sh
