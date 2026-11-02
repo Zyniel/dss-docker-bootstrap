@@ -64,6 +64,7 @@ Set in [`compose.base.yaml`](../compose.base.yaml) for every instance:
 |---|---|
 | `build.context: ./image` | Only `image/` is sent to Docker: the license and the instances never reach a build |
 | `pull_policy: build` | Every `docker compose up` rebuilds the image, from cache, so changes always apply |
+| `127.0.0.1:${DSS_HOST_PORT:-10000}:10000` | Host port from a Compose variable, local access only. See [Host port](instances.md#host-port) |
 | `restart: on-failure:3` | Up to three retries after a failed start |
 | `init: true` | Signal handling and process reaping |
 | `no-new-privileges` | Processes cannot gain privileges |

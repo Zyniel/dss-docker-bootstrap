@@ -11,6 +11,12 @@ services:
     # matches the instance's compose.yaml, even after it changes. Compose names
     # the image after the instance: <name>-dss.
     pull_policy: build
+    # Host port from DSS_HOST_PORT (default 10000), bound to 127.0.0.1 only.
+    # Compose reads it from the shell or the instance's .env file; it is not
+    # passed into the container. Inside, DSS always listens on 10000, the
+    # image's DSS_PORT, which its installer and the healthcheck rely on.
+    ports:
+      - "127.0.0.1:${DSS_HOST_PORT:-10000}:10000"
     volumes:
       - dss-data:/home/dataiku/dss
       # One license for every instance, read-only. The folder is mounted rather

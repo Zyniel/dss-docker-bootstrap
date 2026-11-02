@@ -36,14 +36,31 @@ services:
         DSS_BASE_IMAGE: dataiku/dss:13.4.4
         ORACLE_JDBC_VERSION: ""
         TRINO_JDBC_VERSION: "484"
-    ports:
-      - "127.0.0.1:10001:10000"   # a free host port
 
 volumes:
   dss-data:   # required: extends does not carry it over
 ```
 
-Several instances can run side by side, each on its own host port.
+## Host port
+
+Each instance is published on `127.0.0.1:${DSS_HOST_PORT:-10000}`. To run
+instances side by side, give each its own port in a `.env` file in its folder:
+
+```shell
+echo DSS_HOST_PORT=10001 > instances/dss13-trino/.env
+```
+
+- `.env` files are ignored by Git: the port is a setting of your machine, not
+  of the instance.
+- A `DSS_HOST_PORT` set in the shell takes precedence, for a one-off run:
+
+  ```shell
+  DSS_HOST_PORT=10005 docker compose up -d
+  ```
+
+- Only the host side changes: inside the container, DSS listens on 10000, the
+  image's `DSS_PORT`, which its installer and the healthcheck use.
+  `DSS_HOST_PORT` is read by Compose only, and never reaches the container.
 
 ## Pin the base image
 

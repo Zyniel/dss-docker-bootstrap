@@ -34,7 +34,7 @@ For each base image, in a throwaway Compose project `dss-smoke-<version>`:
 
 | Variable | Default | Use |
 |---|---|---|
-| `SMOKE_PORT` | `10100` | Host port, so a running instance is not disturbed |
+| `SMOKE_PORT` | `10100` | Host port (passed as `DSS_HOST_PORT`), so a running instance is not disturbed |
 | `SMOKE_TIMEOUT` | `1200` | Seconds to wait for `healthy` |
 
 - It takes a few minutes per base image.

@@ -16,7 +16,7 @@ docker compose logs dss | grep -E '^\[[-!]\]'
 | `[-] DSS license path ... is not a readable file` | A folder, or not readable by uid 1000 | See [License on Linux](license.md#linux-hosts) |
 | Container restarts, then stops | Any `[-]` error: Docker retries three times | Read the first `[-]` line |
 | `starting` for several minutes | First start: DSS is being installed | Wait; follow `docker compose logs -f dss` |
-| `port is already allocated` | Another instance or program uses the port | Change `ports` in `compose.yaml` |
+| `port is already allocated` | Another instance or program uses the port | Set another `DSS_HOST_PORT` in the instance's `.env`. See [Host port](instances.md#host-port) |
 | DSS reports the license as not validly signed | Entered with `dsscli set-license`, which garbles non-ASCII characters | Use `license/license.json`. See [License](license.md#why-not-dsscli-set-license) |
 
 ## Build
