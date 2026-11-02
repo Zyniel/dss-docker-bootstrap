@@ -27,6 +27,8 @@ filter_unconventional = false
 # matching parser wins.
 commit_parsers = [
   { message = "^Merge pull request", skip = true },
+  # The commits that update CHANGELOG.md for a release (docs/development.md)
+  { message = "^chore\\(release\\)", skip = true },
   { message = "^feat", group = "<!-- 0 -->Features" },
   { message = "^fix", group = "<!-- 1 -->Fixes" },
   { message = "^docs", group = "<!-- 2 -->Documentation" },
