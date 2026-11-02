@@ -52,6 +52,44 @@ For each base image, in a throwaway Compose project `dss-smoke-<version>`:
   differ, down to the tools they include (13.4.4 has no `cmp`, for example).
 - Read the full container logs, not only the expected lines.
 
+## Releases
+
+A release updates `CHANGELOG.md`, tags the commit and pushes both. GitHub
+Actions then creates the GitHub release for the tag
+([`release.yml`](../.github/workflows/release.yml)). From an up-to-date
+`main`, with [git-cliff](https://git-cliff.org) installed:
+
+**First release**, with an explicit version (there is no previous tag to bump
+from):
+
+```shell
+git cliff --tag v1.0.0 -o CHANGELOG.md
+git add CHANGELOG.md && git commit -m "chore(release): v1.0.0"
+git tag v1.0.0 && git push origin main v1.0.0
+```
+
+**Next releases**, with the version derived from the commits since the last
+tag (`feat:` bumps the minor version, anything else the patch version):
+
+```shell
+version=$(git cliff --bumped-version)
+git cliff --bump -o CHANGELOG.md && git commit -am "chore(release): $version"
+git tag "$version" && git push origin main "$version"
+```
+
+- The changelog and the release notes are generated from
+  [`cliff.toml`](../cliff.toml). Commits are grouped by their
+  [Conventional Commits](https://www.conventionalcommits.org) prefix:
+  `feat:` (Features), `fix:` (Fixes), `docs:` (Documentation), anything else
+  (Changes). Merge commits and `chore(release)` commits are left out.
+- The GitHub release lists only the tag's own changes.
+- Preview before releasing:
+
+  ```shell
+  git cliff --unreleased        # changes since the last tag
+  git cliff --bumped-version    # the next version
+  ```
+
 ## Shell script conventions
 
 - A header saying what the script does and where it runs: on the host, at

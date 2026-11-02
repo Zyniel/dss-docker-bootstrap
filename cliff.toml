@@ -1,0 +1,38 @@
+# git-cliff configuration: release notes and changelog from the Git history.
+# Used by .github/workflows/release.yml on each pushed version tag, and locally
+# with "git cliff" (see docs/development.md).
+
+[changelog]
+header = "# Changelog\n"
+# One section per version (or "Unreleased"), one subsection per group, one line
+# per commit: the first line of its message.
+body = """
+{% if version %}## {{ version | trim_start_matches(pat="v") }} - {{ timestamp | date(format="%Y-%m-%d") }}{% else %}## Unreleased{% endif %}
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | trim }}
+{% for commit in commits %}
+- {{ commit.message | split(pat="\n") | first | trim }}\
+{% endfor %}
+{% endfor %}
+"""
+trim = true
+# A blank line before each version heading, which trim would otherwise remove.
+postprocessors = [{ pattern = '(?m)^## ', replace = "\n## " }]
+
+[git]
+conventional_commits = true
+# Keep commits that do not follow Conventional Commits, such as the early ones.
+filter_unconventional = false
+# Groups, in this order (the HTML comments only set the order). The first
+# matching parser wins.
+commit_parsers = [
+  { message = "^Merge pull request", skip = true },
+  # The commits that update CHANGELOG.md for a release (docs/development.md)
+  { message = "^chore\\(release\\)", skip = true },
+  { message = "^feat", group = "<!-- 0 -->Features" },
+  { message = "^fix", group = "<!-- 1 -->Fixes" },
+  { message = "^docs", group = "<!-- 2 -->Documentation" },
+  { message = ".*", group = "<!-- 9 -->Changes" },
+]
+# Version tags: v1.0.0, v1.2.3...
+tag_pattern = "v[0-9].*"
