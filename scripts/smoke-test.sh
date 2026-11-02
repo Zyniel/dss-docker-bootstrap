@@ -12,7 +12,7 @@
 # Runs on your machine, from Git Bash on Windows; only Docker is needed. Each
 # base image is tested in its own throwaway Compose project, named
 # dss-smoke-<version>: compose.base.yaml plus a small override file,
-# .smoke/compose.yaml, that sets the base image and the port. The project is
+# .smoke/compose.yaml, that sets the base image. The project is
 # deleted at the end, with its volumes and image, unless --keep is given. If
 # license/license.json exists, it is used, and DSS must accept it. The checks
 # that run inside the DSS container are in scripts/smoke-checks/.
@@ -40,6 +40,10 @@ cd "$(dirname "$0")/.."
 # ${NAME:-default} is the value of NAME, or "default" when NAME is unset or empty.
 SMOKE_PORT=${SMOKE_PORT:-10100}
 SMOKE_TIMEOUT=${SMOKE_TIMEOUT:-1200}
+
+# compose.base.yaml takes the host port from DSS_HOST_PORT. An exported
+# variable takes precedence over any .env file.
+export DSS_HOST_PORT=$SMOKE_PORT
 
 # The override file written for each base image (ignored by Git).
 OVERRIDE=.smoke/compose.yaml
@@ -296,9 +300,9 @@ smoke_test() {
     # Project names cannot contain dots.
     project=dss-smoke-$(echo "$version" | tr '.' '-')
 
-    # The override file adds the base image and the port to compose.base.yaml.
-    # Everything between the two EOF lines is written to the file as is, with
-    # the variables replaced by their values.
+    # The override file adds the base image to compose.base.yaml. Everything
+    # between the two EOF lines is written to the file as is, with the
+    # variables replaced by their values.
     mkdir -p "$(dirname "$OVERRIDE")"
     cat >"$OVERRIDE" <<EOF
 services:
@@ -306,8 +310,6 @@ services:
     build:
       args:
         DSS_BASE_IMAGE: $base_image
-    ports:
-      - "127.0.0.1:$SMOKE_PORT:10000"
 EOF
     image=$(compose config --images)
     log "=== $base_image, Compose project $project"

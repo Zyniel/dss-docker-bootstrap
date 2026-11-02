@@ -1,6 +1,9 @@
 # DSS license, wherever it is placed (license/license.json is the expected path)
 license.json
 
+# Local settings of an instance, such as DSS_HOST_PORT
+.env
+
 # Override file written by scripts/smoke-test.sh
 .smoke/
 

@@ -30,8 +30,9 @@ cd instances/dss15-orcl21
 docker compose up -d
 ```
 
-Open <http://localhost:10000> once `docker compose ps` reports `healthy` (a
-first start takes a few minutes). A new instance's login is `admin` / `admin`:
+Open <http://localhost:10000> (or the instance's
+[host port](#host-port)) once `docker compose ps` reports `healthy` (a first
+start takes a few minutes). A new instance's login is `admin` / `admin`:
 change it at first login.
 
 ## Layout
@@ -39,7 +40,7 @@ change it at first login.
 ```
 image/              Dockerfile and startup scripts
 compose.base.yaml   settings shared by all instances
-instances/<name>/   one compose.yaml per instance
+instances/<name>/   one compose.yaml per instance, and an optional .env
 license/            license.json, shared by all instances (ignored by Git)
 scripts/            lint and smoke test
 ```
@@ -59,8 +60,6 @@ services:
         DSS_BASE_IMAGE: dataiku/dss:15.2.0@sha256:04b18e413e617d6485c317737228a6b16dcd899f815ee2a626c2b2b0e428582f
         ORACLE_JDBC_VERSION: 21.24.0.0
         TRINO_JDBC_VERSION: ""
-    ports:
-      - "127.0.0.1:10000:10000"
 
 volumes:
   dss-data:
@@ -71,14 +70,25 @@ volumes:
 | `DSS_BASE_IMAGE` | [`dataiku/dss`](https://hub.docker.com/r/dataiku/dss/tags) version tag, optionally pinned with `@<digest>` | `dataiku/dss:13.4.4` |
 | `ORACLE_JDBC_VERSION` | `ojdbc11` and `orai18n` version, `""` to skip | `21.24.0.0` |
 | `TRINO_JDBC_VERSION` | `trino-jdbc` version, `""` to skip | `484` |
-| `ports` | Host port, unique per instance | — |
 
 - The folder name is the Compose project name: it names the container, the
   image (`<name>-dss`) and the data volume (`<name>_dss-data`).
 - The `volumes` block is required.
-- To add an instance, copy a folder and change its settings and port.
+- To add an instance, copy a folder and change its settings.
 - A digest is printed by `docker buildx imagetools inspect dataiku/dss:<tag>`.
   The build fails if the tag does not match the DSS version in the image.
+
+### Host port
+
+DSS is published on `127.0.0.1:${DSS_HOST_PORT:-10000}`. To run instances side
+by side, give each its own port in a `.env` file in its folder (ignored by Git):
+
+```shell
+echo DSS_HOST_PORT=10001 > instances/<name>/.env
+```
+
+A `DSS_HOST_PORT` set in the shell takes precedence over the `.env` file.
+Inside the container, DSS always listens on 10000.
 
 ## Usage
 
