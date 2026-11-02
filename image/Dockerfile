@@ -1,6 +1,6 @@
 # Custom Dataiku DSS image: the official dataiku/dss image plus a startup
 # wrapper that installs optional JDBC drivers (Oracle, Trino) and an optional
-# license file into the DSS data directory before DSS starts. See README.md.
+# license file into the DSS data directory before DSS starts. See ../README.md.
 
 # The base image: a dataiku/dss version tag, optionally pinned to a digest,
 # for example dataiku/dss:15.2.0 or dataiku/dss:15.2.0@sha256:04b18e41...

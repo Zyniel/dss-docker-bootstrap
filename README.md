@@ -6,6 +6,14 @@ Trino) and an optional license file are installed into the DSS data directory
 before DSS starts. Each server, or instance, keeps its data in its own Docker
 volume.
 
+```
+image/              the custom image: Dockerfile and the scripts it copies
+compose.base.yaml   settings shared by every instance
+instances/          one folder per instance, with its compose.yaml
+license/            the license, used by every instance
+scripts/            tools to check changes: lint and smoke test
+```
+
 ## Requirements
 
 - Docker Engine with the Compose plugin (or Docker Desktop)
@@ -108,7 +116,7 @@ versions apply at the next `docker compose up`.
 The jars cannot be placed in the data directory when the image is built: the
 DSS installer needs an empty data directory, and the `dss-data` volume is
 mounted over it at runtime anyway. So the image keeps them in
-`/home/dataiku/jdbc-drivers`, and [`start-dss.sh`](start-dss.sh) copies them into
+`/home/dataiku/jdbc-drivers`, and [`start-dss.sh`](image/start-dss.sh) copies them into
 `lib/jdbc` on every start, before DSS starts. It lists what it installed in
 `lib/jdbc/.dss-bootstrap-drivers`, and at the next start removes jars from a
 previous version or from a driver that was turned off, so two versions of a
@@ -152,7 +160,7 @@ uses that:
    `run.sh` without its final `exec "$DSS_DATADIR"/bin/dss run` line. The build
    fails if that line is not found, so a changed upstream script cannot be
    silently ignored with a new base image.
-2. At container start, [`start-dss.sh`](start-dss.sh) checks that the license
+2. At container start, [`start-dss.sh`](image/start-dss.sh) checks that the license
    file, when present, is readable JSON, checks the data directory version
    (see [One volume, one DSS version](#one-volume-one-dss-version)), runs
    `dss-init.sh` (install on an empty volume, nothing otherwise), installs the
@@ -199,7 +207,7 @@ Windows:
 
 - `scripts/lint.sh` runs [ShellCheck](https://www.shellcheck.net/) on the shell
   scripts and [Hadolint](https://github.com/hadolint/hadolint) on the
-  Dockerfile, from their official images.
+  [Dockerfile](image/Dockerfile), from their official images.
 - `scripts/smoke-test.sh` builds the image and tests it end to end in a
   throwaway Compose project: refusals on an unusable license and on a data
   directory from another DSS version, a fresh install up to `healthy`, the
@@ -226,8 +234,8 @@ scripts run in Linux containers, where CRLF line endings break them.
 
 ## License and image usage
 
-Keep the license file at `license/license.json`. It is ignored by Git and
-excluded from the build context.
+Keep the license file at `license/license.json`. It is ignored by Git, and
+outside the build context (`image/`), so it never ends up in an image.
 
 The public `dataiku/dss` Docker Hub image is described as intended for evaluation
 and not production use. Dataiku also warns that running DSS in a container is

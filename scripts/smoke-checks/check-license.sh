@@ -1,20 +1,23 @@
 #!/bin/bash
-# Runs inside the DSS container, started by smoke-test.sh.
-#
 # Checks that DSS uses the license provided in license/license.json, then asks
 # DSS itself whether it accepts that license. The last line printed is the
 # answer, from license_status.py.
 #
-# No "set -u" here: DSS's own environment scripts, loaded below, use variables
-# that may be unset, and -u would stop them with an error.
-set -e
+# Runs inside the DSS container, from scripts/smoke-test.sh.
+#
+# Only "set -e" here: DSS's own environment scripts, loaded below, run in this
+# shell with its options, and use variables that may be unset, which -u would
+# reject.
+set -e # stop at the first failing command
 
 provided=$DSS_LICENSE_FILE
 installed=$DSS_DATADIR/config/license.json
 
 # start-dss.sh copies the provided license into the data directory. Compare
 # checksums of the two files: the same checksum means the same content.
-if [[ "$(sha256sum <"$provided")" != "$(sha256sum <"$installed")" ]]; then
+provided_sum=$(sha256sum <"$provided")
+installed_sum=$(sha256sum <"$installed")
+if [[ "$provided_sum" != "$installed_sum" ]]; then
     echo "config/license.json differs from the provided license"
     exit 1
 fi

@@ -1,11 +1,10 @@
 #!/bin/bash
-# Runs inside the DSS container, started by smoke-test.sh.
-#
 # Checks that every JDBC driver jar built into the image was copied, unchanged,
-# into the DSS data directory, and that the list start-dss.sh keeps of the jars
-# it installed (the manifest) names exactly those jars. Prints the jars found,
-# or "none".
-set -euo pipefail
+# into the DSS data directory, and that start-dss.sh's manifest, its list of
+# the jars it installed, names exactly those jars. Prints the jars, or "none".
+#
+# Runs inside the DSS container, from scripts/smoke-test.sh.
+set -euo pipefail # stop at the first failing command, unset variable or failed pipe
 
 source_dir=/home/dataiku/jdbc-drivers
 target_dir=$DSS_DATADIR/lib/jdbc
@@ -26,14 +25,16 @@ if [[ -z "$jars" ]]; then
 fi
 
 # Compare each jar with its copy. sha256sum prints a checksum of the file's
-# content: two files with the same checksum have the same content.
-# "<<<" passes the text in $jars to the loop, which reads it one line at a time.
+# content: two files with the same checksum have the same content. "while read"
+# handles one line at a time, from the text given with "<<<".
 while read -r jar; do
     if [[ ! -f "$target_dir/$jar" ]]; then
         echo "missing: lib/jdbc/$jar"
         exit 1
     fi
-    if [[ "$(sha256sum <"$source_dir/$jar")" != "$(sha256sum <"$target_dir/$jar")" ]]; then
+    source_sum=$(sha256sum <"$source_dir/$jar")
+    target_sum=$(sha256sum <"$target_dir/$jar")
+    if [[ "$source_sum" != "$target_sum" ]]; then
         echo "different from the image: lib/jdbc/$jar"
         exit 1
     fi
@@ -43,10 +44,12 @@ if [[ ! -f "$manifest" ]]; then
     echo "no manifest in lib/jdbc"
     exit 1
 fi
-if [[ "$(cat "$manifest")" != "$jars" ]]; then
+listed=$(cat "$manifest")
+if [[ "$listed" != "$jars" ]]; then
     echo "the manifest does not list the image's jars"
     exit 1
 fi
 
-# Print the jars on one line: tr replaces each line break with a space.
-echo "$jars" | tr '\n' ' '
+# printf '%s' prints the list without a final line break, and tr turns the
+# line breaks between the jars into spaces.
+printf '%s' "$jars" | tr '\n' ' '

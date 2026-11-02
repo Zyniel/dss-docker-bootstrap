@@ -1,7 +1,5 @@
 #!/bin/bash
-#
-# Smoke test for the DSS image: builds it, starts it and checks that it works.
-#
+# Smoke test of the DSS image: builds it, starts it and checks that it works.
 # For each DSS base image given, the test:
 #   1. builds the image with Docker Compose;
 #   2. checks that the container refuses to start when something is wrong (a
@@ -11,7 +9,8 @@
 #   4. checks the startup logs, the JDBC drivers and the license;
 #   5. restarts DSS and checks that nothing is installed a second time.
 #
-# Each base image is tested in its own throwaway Compose project, named
+# Runs on your machine, from Git Bash on Windows; only Docker is needed. Each
+# base image is tested in its own throwaway Compose project, named
 # dss-smoke-<version>: compose.base.yaml plus a small override file,
 # .smoke/compose.yaml, that sets the base image and the port. The project is
 # deleted at the end, with its volumes and image, unless --keep is given. If
@@ -28,12 +27,7 @@
 # Optional environment variables:
 #   SMOKE_PORT     host port for DSS during the test (default 10100)
 #   SMOKE_TIMEOUT  seconds to wait for DSS to be healthy (default 1200)
-
-# Stop at the first error:
-#   -e           exit as soon as a command fails
-#   -u           treat the use of an unset variable as an error
-#   -o pipefail  a pipeline (a | b) fails if any command in it fails
-set -euo pipefail
+set -euo pipefail # stop at the first failing command, unset variable or failed pipe
 
 # Git Bash on Windows rewrites arguments that look like Unix paths, such as
 # /home/dataiku, into Windows paths. Docker needs them unchanged.
@@ -50,7 +44,7 @@ SMOKE_TIMEOUT=${SMOKE_TIMEOUT:-1200}
 # The override file written for each base image (ignored by Git).
 OVERRIDE=.smoke/compose.yaml
 
-# Set by smoke_test for each version, and used by the functions below.
+# Set by smoke_test for each base image, and used by the functions below.
 project=""  # Compose project name, for example dss-smoke-13-4-4
 image=""    # image name, for example dss-smoke-13-4-4-dss
 keep=false  # true when --keep is given
@@ -116,7 +110,7 @@ count_logs() {
 }
 
 # wait_healthy: waits until Docker reports the DSS container as "healthy" (see
-# HEALTHCHECK in the Dockerfile). Fails if the container stops running, or
+# HEALTHCHECK in image/Dockerfile). Fails if the container stops running, or
 # after SMOKE_TIMEOUT seconds.
 wait_healthy() {
     local container
@@ -143,12 +137,14 @@ wait_healthy() {
 
 # run_in_container SCRIPT: runs one of the scripts in scripts/smoke-checks/
 # inside the DSS container, where DSS's files and tools are, and prints its
-# output. The folder is copied into the container's /tmp first.
+# output. The folder is copied into the container's /tmp first. It is called
+# from an if, where set -e does not apply: "|| return 1" and "&&" stop it at
+# the first failure instead.
 run_in_container() {
     local container
-    container=$(compose ps -q dss)
-    docker cp scripts/smoke-checks "$container:/tmp/" >/dev/null
-    docker exec "$container" bash "/tmp/smoke-checks/$1"
+    container=$(compose ps -q dss) || return 1
+    docker cp scripts/smoke-checks "$container:/tmp/" >/dev/null &&
+        docker exec "$container" bash "/tmp/smoke-checks/$1"
 }
 
 # ---------------------------------------------------------------------------
